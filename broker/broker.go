@@ -32,6 +32,7 @@ type Message struct {
 }
 
 type PublishHook func(*packets.PublishPacket)
+type OnlineOfflineHook func(string, bool)
 
 type Broker struct {
 	id          string
@@ -49,6 +50,7 @@ type Broker struct {
 	auth        auth.Auth
 	bridgeMQ    bridge.BridgeMQ
 	publishHook PublishHook
+	onOffHook   OnlineOfflineHook
 }
 
 func newMessagePool() []chan *Message {
@@ -103,6 +105,10 @@ func NewBroker(config *Config) (*Broker, error) {
 
 func (b *Broker) SetPublishHook(hook PublishHook) {
 	b.publishHook = hook
+}
+
+func (b *Broker) SetOnlineOfflineHook(hook OnlineOfflineHook) {
+	b.onOffHook = hook
 }
 
 func (b *Broker) SubmitWork(clientId string, msg *Message) {
@@ -651,4 +657,8 @@ func (b *Broker) OnlineOfflineNotification(clientID string, online bool) {
 	packet.Payload = []byte(fmt.Sprintf(`{"clientID":"%s","online":%v,"timestamp":"%s"}`, clientID, online, time.Now().UTC().Format(time.RFC3339)))
 
 	b.PublishMessage(packet)
+
+	if b.onOffHook != nil {
+		b.onOffHook(clientID, online)
+	}
 }
