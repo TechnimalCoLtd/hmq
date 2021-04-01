@@ -59,7 +59,7 @@ type Client struct {
 	mu             sync.Mutex
 	broker         *Broker
 	conn           net.Conn
-	info           info
+	info           Info
 	route          route
 	status         int
 	ctx            context.Context
@@ -100,7 +100,7 @@ type subscription struct {
 	groupName string
 }
 
-type info struct {
+type Info struct {
 	clientID  string
 	username  string
 	password  []byte

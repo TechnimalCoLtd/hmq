@@ -313,7 +313,7 @@ func (b *Broker) handleConnection(typ int, conn net.Conn) {
 	} else {
 		willmsg = nil
 	}
-	info := info{
+	info := Info{
 		clientID:  msg.ClientIdentifier,
 		username:  msg.Username,
 		password:  msg.Password,
@@ -404,7 +404,7 @@ func (b *Broker) ConnectToDiscovery() {
 	log.Debug("connect to router success :", zap.String("Router", b.config.Router))
 
 	cid := b.id
-	info := info{
+	info := Info{
 		clientID:  cid,
 		keepalive: 60,
 	}
@@ -480,7 +480,7 @@ func (b *Broker) connectRouter(id, addr string) {
 	}
 	cid := GenUniqueId()
 
-	info := info{
+	info := Info{
 		clientID:  cid,
 		keepalive: 60,
 	}
