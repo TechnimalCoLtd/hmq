@@ -174,7 +174,7 @@ func publish(sub *subscription, packet *packets.PublishPacket) {
 }
 
 // timer for retry delivery
-func (c *client) ensureRetryTimer(interval ...int64) {
+func (c *Client) ensureRetryTimer(interval ...int64) {
 	if c.retryTimer != nil {
 		return
 	}
@@ -191,7 +191,7 @@ func (c *client) ensureRetryTimer(interval ...int64) {
 	return
 }
 
-func (c *client) resetRetryTimer() {
+func (c *Client) resetRetryTimer() {
 	if c.retryTimer == nil {
 		return
 	}
@@ -202,7 +202,7 @@ func (c *client) resetRetryTimer() {
 
 }
 
-func (c *client) retryDelivery() {
+func (c *Client) retryDelivery() {
 	c.resetRetryTimer()
 	c.inflightMu.RLock()
 	ilen := len(c.inflight)

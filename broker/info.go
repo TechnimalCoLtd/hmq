@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (c *client) SendInfo() {
+func (c *Client) SendInfo() {
 	if c.status == Disconnected {
 		return
 	}
@@ -23,7 +23,7 @@ func (c *client) SendInfo() {
 	}
 }
 
-func (c *client) StartPing() {
+func (c *Client) StartPing() {
 	timeTicker := time.NewTicker(time.Second * 50)
 	ping := packets.NewControlPacket(packets.Pingreq).(*packets.PingreqPacket)
 	for {
@@ -40,7 +40,7 @@ func (c *client) StartPing() {
 	}
 }
 
-func (c *client) SendConnect() {
+func (c *Client) SendConnect() {
 
 	if c.status != Connected {
 		return
@@ -71,7 +71,7 @@ func NewInfo(sid, url string, isforword bool) *packets.PublishPacket {
 	return pub
 }
 
-func (c *client) ProcessInfo(packet *packets.PublishPacket) {
+func (c *Client) ProcessInfo(packet *packets.PublishPacket) {
 	nc := c.conn
 	b := c.broker
 	if nc == nil {

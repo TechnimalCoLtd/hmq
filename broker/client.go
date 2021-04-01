@@ -15,9 +15,9 @@ import (
 
 	"github.com/eapache/queue"
 
-	"github.com/fhmq/hmq/broker/lib/sessions"
-	"github.com/fhmq/hmq/broker/lib/topics"
-	"github.com/fhmq/hmq/plugins/bridge"
+	"github.com/TechnimalCoLtd/hmq/broker/lib/sessions"
+	"github.com/TechnimalCoLtd/hmq/broker/lib/topics"
+	"github.com/TechnimalCoLtd/hmq/plugins/bridge"
 	"golang.org/x/net/websocket"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
@@ -54,7 +54,7 @@ var (
 	groupCompile = regexp.MustCompile(_GroupTopicRegexp)
 )
 
-type client struct {
+type Client struct {
 	typ            int
 	mu             sync.Mutex
 	broker         *Broker
@@ -93,7 +93,7 @@ type inflightElem struct {
 	timestamp int64
 }
 type subscription struct {
-	client    *client
+	client    *Client
 	topic     string
 	qos       byte
 	share     bool
@@ -120,7 +120,7 @@ var (
 	r                  = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
-func (c *client) init() {
+func (c *Client) init() {
 	c.status = Connected
 	c.info.localIP, _, _ = net.SplitHostPort(c.conn.LocalAddr().String())
 	remoteAddr := c.conn.RemoteAddr()
@@ -141,7 +141,7 @@ func (c *client) init() {
 	c.mqueue = queue.New()
 }
 
-func (c *client) readLoop() {
+func (c *Client) readLoop() {
 	nc := c.conn
 	b := c.broker
 	if nc == nil || b == nil {
@@ -347,7 +347,7 @@ func ProcessMessage(msg *Message) {
 	}
 }
 
-func (c *client) ProcessPublish(packet *packets.PublishPacket) {
+func (c *Client) ProcessPublish(packet *packets.PublishPacket) {
 	switch c.typ {
 	case CLIENT:
 		c.processClientPublish(packet)
@@ -359,7 +359,7 @@ func (c *client) ProcessPublish(packet *packets.PublishPacket) {
 
 }
 
-func (c *client) processRemotePublish(packet *packets.PublishPacket) {
+func (c *Client) processRemotePublish(packet *packets.PublishPacket) {
 	if c.status == Disconnected {
 		return
 	}
@@ -372,7 +372,7 @@ func (c *client) processRemotePublish(packet *packets.PublishPacket) {
 
 }
 
-func (c *client) processRouterPublish(packet *packets.PublishPacket) {
+func (c *Client) processRouterPublish(packet *packets.PublishPacket) {
 	if c.status == Disconnected {
 		return
 	}
@@ -397,7 +397,7 @@ func (c *client) processRouterPublish(packet *packets.PublishPacket) {
 
 }
 
-func (c *client) processClientPublish(packet *packets.PublishPacket) {
+func (c *Client) processClientPublish(packet *packets.PublishPacket) {
 
 	topic := packet.TopicName
 
@@ -447,7 +447,7 @@ func (c *client) processClientPublish(packet *packets.PublishPacket) {
 
 }
 
-func (c *client) ProcessPublishMessage(packet *packets.PublishPacket) {
+func (c *Client) ProcessPublishMessage(packet *packets.PublishPacket) {
 
 	b := c.broker
 	if b == nil {
@@ -499,7 +499,7 @@ func (c *client) ProcessPublishMessage(packet *packets.PublishPacket) {
 
 }
 
-func (c *client) ProcessSubscribe(packet *packets.SubscribePacket) {
+func (c *Client) ProcessSubscribe(packet *packets.SubscribePacket) {
 	switch c.typ {
 	case CLIENT:
 		c.processClientSubscribe(packet)
@@ -510,7 +510,7 @@ func (c *client) ProcessSubscribe(packet *packets.SubscribePacket) {
 	}
 }
 
-func (c *client) processClientSubscribe(packet *packets.SubscribePacket) {
+func (c *Client) processClientSubscribe(packet *packets.SubscribePacket) {
 	if c.status == Disconnected {
 		return
 	}
@@ -604,7 +604,7 @@ func (c *client) processClientSubscribe(packet *packets.SubscribePacket) {
 	}
 }
 
-func (c *client) processRouterSubscribe(packet *packets.SubscribePacket) {
+func (c *Client) processRouterSubscribe(packet *packets.SubscribePacket) {
 	if c.status == Disconnected {
 		return
 	}
@@ -664,7 +664,7 @@ func (c *client) processRouterSubscribe(packet *packets.SubscribePacket) {
 	}
 }
 
-func (c *client) ProcessUnSubscribe(packet *packets.UnsubscribePacket) {
+func (c *Client) ProcessUnSubscribe(packet *packets.UnsubscribePacket) {
 	switch c.typ {
 	case CLIENT:
 		c.processClientUnSubscribe(packet)
@@ -673,7 +673,7 @@ func (c *client) ProcessUnSubscribe(packet *packets.UnsubscribePacket) {
 	}
 }
 
-func (c *client) processRouterUnSubscribe(packet *packets.UnsubscribePacket) {
+func (c *Client) processRouterUnSubscribe(packet *packets.UnsubscribePacket) {
 	if c.status == Disconnected {
 		return
 	}
@@ -707,7 +707,7 @@ func (c *client) processRouterUnSubscribe(packet *packets.UnsubscribePacket) {
 	}
 }
 
-func (c *client) processClientUnSubscribe(packet *packets.UnsubscribePacket) {
+func (c *Client) processClientUnSubscribe(packet *packets.UnsubscribePacket) {
 	if c.status == Disconnected {
 		return
 	}
@@ -752,7 +752,7 @@ func (c *client) processClientUnSubscribe(packet *packets.UnsubscribePacket) {
 	b.BroadcastSubOrUnsubMessage(packet)
 }
 
-func (c *client) ProcessPing() {
+func (c *Client) ProcessPing() {
 	if c.status == Disconnected {
 		return
 	}
@@ -764,7 +764,7 @@ func (c *client) ProcessPing() {
 	}
 }
 
-func (c *client) Close() {
+func (c *Client) Close() {
 	if c.status == Disconnected {
 		return
 	}
@@ -825,7 +825,7 @@ func (c *client) Close() {
 	}
 }
 
-func (c *client) WriterPacket(packet packets.ControlPacket) error {
+func (c *Client) WriterPacket(packet packets.ControlPacket) error {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Error("recover error, ", zap.Any("recover", r))
@@ -848,7 +848,7 @@ func (c *client) WriterPacket(packet packets.ControlPacket) error {
 	return packet.Write(c.conn)
 }
 
-func (c *client) registerPublishPacketId(packetId uint16) error {
+func (c *Client) registerPublishPacketId(packetId uint16) error {
 	if c.isAwaitingFull() {
 		log.Error("Dropped qos2 packet for too many awaiting_rel", zap.Uint16("id", packetId))
 		return errors.New("DROPPED_QOS2_PACKET_FOR_TOO_MANY_AWAITING_REL")
@@ -862,7 +862,7 @@ func (c *client) registerPublishPacketId(packetId uint16) error {
 	return nil
 }
 
-func (c *client) isAwaitingFull() bool {
+func (c *Client) isAwaitingFull() bool {
 	if c.maxAwaitingRel == 0 {
 		return false
 	}
@@ -872,7 +872,7 @@ func (c *client) isAwaitingFull() bool {
 	return true
 }
 
-func (c *client) expireAwaitingRel() {
+func (c *Client) expireAwaitingRel() {
 	if len(c.awaitingRel) == 0 {
 		return
 	}
@@ -885,7 +885,7 @@ func (c *client) expireAwaitingRel() {
 	}
 }
 
-func (c *client) pubRel(packetId uint16) error {
+func (c *Client) pubRel(packetId uint16) error {
 	if _, found := c.awaitingRel[packetId]; found {
 		delete(c.awaitingRel, packetId)
 	} else {

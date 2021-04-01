@@ -8,15 +8,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fhmq/hmq/plugins/bridge"
+	"github.com/TechnimalCoLtd/hmq/plugins/bridge"
 
-	"github.com/fhmq/hmq/plugins/auth"
+	"github.com/TechnimalCoLtd/hmq/plugins/auth"
 
-	"github.com/fhmq/hmq/broker/lib/sessions"
-	"github.com/fhmq/hmq/broker/lib/topics"
+	"github.com/TechnimalCoLtd/hmq/broker/lib/sessions"
+	"github.com/TechnimalCoLtd/hmq/broker/lib/topics"
 
+	"github.com/TechnimalCoLtd/hmq/pool"
 	"github.com/eclipse/paho.mqtt.golang/packets"
-	"github.com/fhmq/hmq/pool"
 	"go.uber.org/zap"
 	"golang.org/x/net/websocket"
 )
@@ -27,7 +27,7 @@ const (
 )
 
 type Message struct {
-	client *client
+	client *Client
 	packet packets.ControlPacket
 }
 
@@ -321,7 +321,7 @@ func (b *Broker) handleConnection(typ int, conn net.Conn) {
 		willMsg:   willmsg,
 	}
 
-	c := &client{
+	c := &Client{
 		typ:    typ,
 		broker: b,
 		conn:   conn,
@@ -346,7 +346,7 @@ func (b *Broker) handleConnection(typ int, conn net.Conn) {
 		old, exist = b.clients.Load(cid)
 		if exist {
 			log.Warn("client exist, close old...", zap.String("clientID", c.info.clientID))
-			ol, ok := old.(*client)
+			ol, ok := old.(*Client)
 			if ok {
 				ol.Close()
 			}
@@ -366,7 +366,7 @@ func (b *Broker) handleConnection(typ int, conn net.Conn) {
 		old, exist = b.routes.Load(cid)
 		if exist {
 			log.Warn("router exist, close old...")
-			ol, ok := old.(*client)
+			ol, ok := old.(*Client)
 			if ok {
 				ol.Close()
 			}
@@ -409,7 +409,7 @@ func (b *Broker) ConnectToDiscovery() {
 		keepalive: 60,
 	}
 
-	c := &client{
+	c := &Client{
 		typ:    CLUSTER,
 		broker: b,
 		conn:   conn,
@@ -485,7 +485,7 @@ func (b *Broker) connectRouter(id, addr string) {
 		keepalive: 60,
 	}
 
-	c := &client{
+	c := &Client{
 		broker: b,
 		typ:    REMOTE,
 		conn:   conn,
@@ -528,7 +528,7 @@ func (b *Broker) checkNodeExist(id, url string) bool {
 func (b *Broker) CheckRemoteExist(remoteID, url string) bool {
 	exist := false
 	b.remotes.Range(func(key, value interface{}) bool {
-		v, ok := value.(*client)
+		v, ok := value.(*Client)
 		if ok {
 			if v.route.remoteUrl == url {
 				v.route.remoteID = remoteID
@@ -541,10 +541,10 @@ func (b *Broker) CheckRemoteExist(remoteID, url string) bool {
 	return exist
 }
 
-func (b *Broker) SendLocalSubsToRouter(c *client) {
+func (b *Broker) SendLocalSubsToRouter(c *Client) {
 	subInfo := packets.NewControlPacket(packets.Subscribe).(*packets.SubscribePacket)
 	b.clients.Range(func(key, value interface{}) bool {
-		client, ok := value.(*client)
+		client, ok := value.(*Client)
 		if ok {
 			subs := client.subMap
 			for _, sub := range subs {
@@ -564,7 +564,7 @@ func (b *Broker) SendLocalSubsToRouter(c *client) {
 
 func (b *Broker) BroadcastInfoMessage(remoteID string, msg *packets.PublishPacket) {
 	b.routes.Range(func(key, value interface{}) bool {
-		r, ok := value.(*client)
+		r, ok := value.(*Client)
 		if ok {
 			if r.route.remoteID == remoteID {
 				return true
@@ -580,7 +580,7 @@ func (b *Broker) BroadcastInfoMessage(remoteID string, msg *packets.PublishPacke
 func (b *Broker) BroadcastSubOrUnsubMessage(packet packets.ControlPacket) {
 
 	b.routes.Range(func(key, value interface{}) bool {
-		r, ok := value.(*client)
+		r, ok := value.(*Client)
 		if ok {
 			r.WriterPacket(packet)
 		}
@@ -589,7 +589,7 @@ func (b *Broker) BroadcastSubOrUnsubMessage(packet packets.ControlPacket) {
 	// log.Info("BroadcastSubscribeMessage remotes: ", s.remotes)
 }
 
-func (b *Broker) removeClient(c *client) {
+func (b *Broker) removeClient(c *Client) {
 	clientId := string(c.info.clientID)
 	typ := c.typ
 	switch typ {

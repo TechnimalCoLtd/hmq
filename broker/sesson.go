@@ -2,7 +2,7 @@ package broker
 
 import "github.com/eclipse/paho.mqtt.golang/packets"
 
-func (b *Broker) getSession(cli *client, req *packets.ConnectPacket, resp *packets.ConnackPacket) error {
+func (b *Broker) getSession(cli *Client, req *packets.ConnectPacket, resp *packets.ConnackPacket) error {
 	// If CleanSession is set to 0, the server MUST resume communications with the
 	// client based on state from the current session, as identified by the client
 	// identifier. If there is no session associated with the client identifier the
