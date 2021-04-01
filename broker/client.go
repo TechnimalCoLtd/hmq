@@ -454,7 +454,7 @@ func (c *client) ProcessPublishMessage(packet *packets.PublishPacket) {
 	}
 
 	if b.publishHook != nil {
-		b.publishHook(packet)
+		b.publishHook(c.info.clientID, packet)
 	}
 
 	typ := c.typ

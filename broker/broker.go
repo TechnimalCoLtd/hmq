@@ -31,7 +31,7 @@ type Message struct {
 	packet packets.ControlPacket
 }
 
-type PublishHook func(*packets.PublishPacket)
+type PublishHook func(string, *packets.PublishPacket)
 type OnlineOfflineHook func(string, bool)
 
 type Broker struct {
@@ -101,6 +101,10 @@ func NewBroker(config *Config) (*Broker, error) {
 	b.bridgeMQ = b.config.Plugin.Bridge
 
 	return b, nil
+}
+
+func (b *Broker) SetAuth(customAuth auth.Auth) {
+	b.auth = customAuth
 }
 
 func (b *Broker) SetPublishHook(hook PublishHook) {
