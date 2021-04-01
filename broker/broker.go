@@ -27,9 +27,11 @@ const (
 )
 
 type Message struct {
-	client *Client
+	client *client
 	packet packets.ControlPacket
 }
+
+type PublishHook func(*packets.PublishPacket)
 
 type Broker struct {
 	id          string
@@ -46,6 +48,7 @@ type Broker struct {
 	sessionMgr  *sessions.Manager
 	auth        auth.Auth
 	bridgeMQ    bridge.BridgeMQ
+	publishHook PublishHook
 }
 
 func newMessagePool() []chan *Message {
@@ -96,6 +99,10 @@ func NewBroker(config *Config) (*Broker, error) {
 	b.bridgeMQ = b.config.Plugin.Bridge
 
 	return b, nil
+}
+
+func (b *Broker) SetPublishHook(hook PublishHook) {
+	b.publishHook = hook
 }
 
 func (b *Broker) SubmitWork(clientId string, msg *Message) {
@@ -313,7 +320,7 @@ func (b *Broker) handleConnection(typ int, conn net.Conn) {
 	} else {
 		willmsg = nil
 	}
-	info := Info{
+	info := info{
 		clientID:  msg.ClientIdentifier,
 		username:  msg.Username,
 		password:  msg.Password,
@@ -321,7 +328,7 @@ func (b *Broker) handleConnection(typ int, conn net.Conn) {
 		willMsg:   willmsg,
 	}
 
-	c := &Client{
+	c := &client{
 		typ:    typ,
 		broker: b,
 		conn:   conn,
@@ -346,7 +353,7 @@ func (b *Broker) handleConnection(typ int, conn net.Conn) {
 		old, exist = b.clients.Load(cid)
 		if exist {
 			log.Warn("client exist, close old...", zap.String("clientID", c.info.clientID))
-			ol, ok := old.(*Client)
+			ol, ok := old.(*client)
 			if ok {
 				ol.Close()
 			}
@@ -366,7 +373,7 @@ func (b *Broker) handleConnection(typ int, conn net.Conn) {
 		old, exist = b.routes.Load(cid)
 		if exist {
 			log.Warn("router exist, close old...")
-			ol, ok := old.(*Client)
+			ol, ok := old.(*client)
 			if ok {
 				ol.Close()
 			}
@@ -404,12 +411,12 @@ func (b *Broker) ConnectToDiscovery() {
 	log.Debug("connect to router success :", zap.String("Router", b.config.Router))
 
 	cid := b.id
-	info := Info{
+	info := info{
 		clientID:  cid,
 		keepalive: 60,
 	}
 
-	c := &Client{
+	c := &client{
 		typ:    CLUSTER,
 		broker: b,
 		conn:   conn,
@@ -480,12 +487,12 @@ func (b *Broker) connectRouter(id, addr string) {
 	}
 	cid := GenUniqueId()
 
-	info := Info{
+	info := info{
 		clientID:  cid,
 		keepalive: 60,
 	}
 
-	c := &Client{
+	c := &client{
 		broker: b,
 		typ:    REMOTE,
 		conn:   conn,
@@ -528,7 +535,7 @@ func (b *Broker) checkNodeExist(id, url string) bool {
 func (b *Broker) CheckRemoteExist(remoteID, url string) bool {
 	exist := false
 	b.remotes.Range(func(key, value interface{}) bool {
-		v, ok := value.(*Client)
+		v, ok := value.(*client)
 		if ok {
 			if v.route.remoteUrl == url {
 				v.route.remoteID = remoteID
@@ -541,10 +548,10 @@ func (b *Broker) CheckRemoteExist(remoteID, url string) bool {
 	return exist
 }
 
-func (b *Broker) SendLocalSubsToRouter(c *Client) {
+func (b *Broker) SendLocalSubsToRouter(c *client) {
 	subInfo := packets.NewControlPacket(packets.Subscribe).(*packets.SubscribePacket)
 	b.clients.Range(func(key, value interface{}) bool {
-		client, ok := value.(*Client)
+		client, ok := value.(*client)
 		if ok {
 			subs := client.subMap
 			for _, sub := range subs {
@@ -564,7 +571,7 @@ func (b *Broker) SendLocalSubsToRouter(c *Client) {
 
 func (b *Broker) BroadcastInfoMessage(remoteID string, msg *packets.PublishPacket) {
 	b.routes.Range(func(key, value interface{}) bool {
-		r, ok := value.(*Client)
+		r, ok := value.(*client)
 		if ok {
 			if r.route.remoteID == remoteID {
 				return true
@@ -580,7 +587,7 @@ func (b *Broker) BroadcastInfoMessage(remoteID string, msg *packets.PublishPacke
 func (b *Broker) BroadcastSubOrUnsubMessage(packet packets.ControlPacket) {
 
 	b.routes.Range(func(key, value interface{}) bool {
-		r, ok := value.(*Client)
+		r, ok := value.(*client)
 		if ok {
 			r.WriterPacket(packet)
 		}
@@ -589,7 +596,7 @@ func (b *Broker) BroadcastSubOrUnsubMessage(packet packets.ControlPacket) {
 	// log.Info("BroadcastSubscribeMessage remotes: ", s.remotes)
 }
 
-func (b *Broker) removeClient(c *Client) {
+func (b *Broker) removeClient(c *client) {
 	clientId := string(c.info.clientID)
 	typ := c.typ
 	switch typ {
