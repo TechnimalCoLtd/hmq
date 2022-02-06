@@ -465,34 +465,27 @@ func (c *client) ProcessPublishMessage(packet *packets.PublishPacket) {
 		}
 	}
 
-	err := c.topicsMgr.Subscribers([]byte(packet.TopicName), packet.Qos, &c.subs, &c.qoss)
-	if err != nil {
+	if err := c.topicsMgr.Subscribers([]byte(packet.TopicName), packet.Qos, &c.subs, &c.qoss); err != nil {
 		log.Error("Error retrieving subscribers list: ", zap.String("ClientID", c.info.clientID))
 		return
 	}
 
-	// fmt.Println("psubs num: ", len(c.subs))
 	if len(c.subs) == 0 {
 		return
 	}
 
 	var qsub []int
 	for i, sub := range c.subs {
-		s, ok := sub.(*subscription)
-		if ok {
-			if s.client.typ == ROUTER {
-				if typ != CLIENT {
-					continue
-				}
+		if s, ok := sub.(*subscription); ok {
+			if s.client.typ == ROUTER && typ == CLIENT {
+				continue
 			}
 			if s.share {
 				qsub = append(qsub, i)
 			} else {
 				publish(s, packet)
 			}
-
 		}
-
 	}
 
 	if len(qsub) > 0 {
@@ -589,8 +582,7 @@ func (c *client) processClientSubscribe(packet *packets.SubscribePacket) {
 
 	suback.ReturnCodes = retcodes
 
-	err := c.WriterPacket(suback)
-	if err != nil {
+	if err := c.WriterPacket(suback); err != nil {
 		log.Error("send suback error, ", zap.Error(err), zap.String("ClientID", c.info.clientID))
 		return
 	}
@@ -721,21 +713,14 @@ func (c *client) processClientUnSubscribe(packet *packets.UnsubscribePacket) {
 	topics := packet.Topics
 
 	for _, topic := range topics {
-		{
-			//publish kafka
-
-			b.Publish(&bridge.Elements{
-				ClientID:  c.info.clientID,
-				Username:  c.info.username,
-				Action:    bridge.Unsubscribe,
-				Timestamp: time.Now().Unix(),
-				Topic:     topic,
-			})
-
-		}
-
-		sub, exist := c.subMap[topic]
-		if exist {
+		b.Publish(&bridge.Elements{
+			ClientID:  c.info.clientID,
+			Username:  c.info.username,
+			Action:    bridge.Unsubscribe,
+			Timestamp: time.Now().Unix(),
+			Topic:     topic,
+		})
+		if sub, exist := c.subMap[topic]; exist {
 			c.topicsMgr.Unsubscribe([]byte(sub.topic), sub)
 			c.session.RemoveTopic(topic)
 			delete(c.subMap, topic)
@@ -746,8 +731,7 @@ func (c *client) processClientUnSubscribe(packet *packets.UnsubscribePacket) {
 	unsuback := packets.NewControlPacket(packets.Unsuback).(*packets.UnsubackPacket)
 	unsuback.MessageID = packet.MessageID
 
-	err := c.WriterPacket(unsuback)
-	if err != nil {
+	if err := c.WriterPacket(unsuback); err != nil {
 		log.Error("send unsuback error, ", zap.Error(err), zap.String("ClientID", c.info.clientID))
 		return
 	}
@@ -760,10 +744,8 @@ func (c *client) ProcessPing() {
 		return
 	}
 	resp := packets.NewControlPacket(packets.Pingresp).(*packets.PingrespPacket)
-	err := c.WriterPacket(resp)
-	if err != nil {
+	if err := c.WriterPacket(resp); err != nil {
 		log.Error("send PingResponse error, ", zap.Error(err), zap.String("ClientID", c.info.clientID))
-		return
 	}
 }
 
@@ -778,15 +760,6 @@ func (c *client) Close() {
 	//wait for message complete
 	// time.Sleep(1 * time.Second)
 	// c.status = Disconnected
-
-	b := c.broker
-	b.Publish(&bridge.Elements{
-		ClientID:  c.info.clientID,
-		Username:  c.info.username,
-		Action:    bridge.Disconnect,
-		Timestamp: time.Now().Unix(),
-	})
-
 	if c.conn != nil {
 		c.conn.Close()
 		c.conn = nil
@@ -794,37 +767,47 @@ func (c *client) Close() {
 
 	subs := c.subMap
 
-	if b != nil {
-		b.removeClient(c)
-		for _, sub := range subs {
-			// guard against race condition where a client gets Close() but wasn't initialized yet fully
-			if sub == nil || b.topicsMgr == nil {
-				continue
-			}
-			err := b.topicsMgr.Unsubscribe([]byte(sub.topic), sub)
-			if err != nil {
-				log.Error("unsubscribe error, ", zap.Error(err), zap.String("ClientID", c.info.clientID))
-			}
-		}
+	b := c.broker
+	if b == nil {
+		return
+	}
 
-		if c.typ == CLIENT {
-			b.BroadcastUnSubscribe(subs)
-			//offline notification
-			b.OnlineOfflineNotification(c.info.clientID, false)
-		}
+	b.Publish(&bridge.Elements{
+		ClientID:  c.info.clientID,
+		Username:  c.info.username,
+		Action:    bridge.Disconnect,
+		Timestamp: time.Now().Unix(),
+	})
 
-		if c.info.willMsg != nil {
-			b.PublishMessage(c.info.willMsg)
+	b.removeClient(c)
+	for _, sub := range subs {
+		// guard against race condition where a client gets Close() but wasn't initialized yet fully
+		if sub == nil || b.topicsMgr == nil {
+			continue
 		}
+		err := b.topicsMgr.Unsubscribe([]byte(sub.topic), sub)
+		if err != nil {
+			log.Error("unsubscribe error, ", zap.Error(err), zap.String("ClientID", c.info.clientID))
+		}
+	}
 
-		if c.typ == CLUSTER {
-			b.ConnectToDiscovery()
-		}
+	if c.typ == CLIENT {
+		b.BroadcastUnSubscribe(subs)
+		//offline notification
+		b.OnlineOfflineNotification(c.info.clientID, false)
+	}
 
-		//do reconnect
-		if c.typ == REMOTE {
-			go b.connectRouter(c.route.remoteID, c.route.remoteUrl)
-		}
+	if c.info.willMsg != nil {
+		b.PublishMessage(c.info.willMsg)
+	}
+
+	if c.typ == CLUSTER {
+		b.ConnectToDiscovery()
+	}
+
+	//do reconnect
+	if c.typ == REMOTE {
+		go b.connectRouter(c.route.remoteID, c.route.remoteUrl)
 	}
 }
 
@@ -866,10 +849,7 @@ func (c *client) registerPublishPacketId(packetId uint16) error {
 }
 
 func (c *client) isAwaitingFull() bool {
-	if c.maxAwaitingRel == 0 {
-		return false
-	}
-	if len(c.awaitingRel) < c.maxAwaitingRel {
+	if c.maxAwaitingRel == 0 || len(c.awaitingRel) < c.maxAwaitingRel {
 		return false
 	}
 	return true

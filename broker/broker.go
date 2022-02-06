@@ -530,12 +530,8 @@ func (b *Broker) checkNodeExist(id, url string) bool {
 			return true
 		}
 
-		//skip
-		l, ok := v.(string)
-		if ok {
-			if url == l {
-				return true
-			}
+		if l, ok := v.(string); ok && l == url {
+			return true
 		}
 
 	}
@@ -645,7 +641,7 @@ func (b *Broker) PublishMessage(packet *packets.PublishPacket) {
 func (b *Broker) BroadcastUnSubscribe(subs map[string]*subscription) {
 
 	unsub := packets.NewControlPacket(packets.Unsubscribe).(*packets.UnsubscribePacket)
-	for topic, _ := range subs {
+	for topic := range subs {
 		unsub.Topics = append(unsub.Topics, topic)
 	}
 

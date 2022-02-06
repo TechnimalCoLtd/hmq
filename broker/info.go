@@ -16,8 +16,7 @@ func (c *client) SendInfo() {
 	url := c.info.localIP + ":" + c.broker.config.Cluster.Port
 
 	infoMsg := NewInfo(c.broker.id, url, false)
-	err := c.WriterPacket(infoMsg)
-	if err != nil {
+	if err := c.WriterPacket(infoMsg); err != nil {
 		log.Error("send info message error, ", zap.Error(err))
 		return
 	}
@@ -29,8 +28,7 @@ func (c *client) StartPing() {
 	for {
 		select {
 		case <-timeTicker.C:
-			err := c.WriterPacket(ping)
-			if err != nil {
+			if err := c.WriterPacket(ping); err != nil {
 				log.Error("ping error: ", zap.Error(err))
 				c.Close()
 			}
@@ -41,10 +39,10 @@ func (c *client) StartPing() {
 }
 
 func (c *client) SendConnect() {
-
 	if c.status != Connected {
 		return
 	}
+
 	m := packets.NewControlPacket(packets.Connect).(*packets.ConnectPacket)
 	m.ProtocolName = "MQIsdp"
 	m.ProtocolVersion = 3
@@ -52,8 +50,7 @@ func (c *client) SendConnect() {
 	m.CleanSession = true
 	m.ClientIdentifier = c.info.clientID
 	m.Keepalive = uint16(60)
-	err := c.WriterPacket(m)
-	if err != nil {
+	if err := c.WriterPacket(m); err != nil {
 		log.Error("send connect message error, ", zap.Error(err))
 		return
 	}
@@ -74,7 +71,7 @@ func NewInfo(sid, url string, isforword bool) *packets.PublishPacket {
 func (c *client) ProcessInfo(packet *packets.PublishPacket) {
 	nc := c.conn
 	b := c.broker
-	if nc == nil {
+	if nc == nil || b == nil {
 		return
 	}
 

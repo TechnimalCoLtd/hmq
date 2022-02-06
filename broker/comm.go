@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
-	uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 )
 
 const (
@@ -92,8 +92,7 @@ func equal(k1, k2 interface{}) bool {
 }
 
 func addSubMap(m map[string]uint64, topic string) {
-	subNum, exist := m[topic]
-	if exist {
+	if subNum, exist := m[topic]; exist {
 		m[topic] = subNum + 1
 	} else {
 		m[topic] = 1
@@ -101,8 +100,7 @@ func addSubMap(m map[string]uint64, topic string) {
 }
 
 func delSubMap(m map[string]uint64, topic string) uint64 {
-	subNum, exist := m[topic]
-	if exist {
+	if subNum, exist := m[topic]; exist {
 		if subNum > 1 {
 			m[topic] = subNum - 1
 			return subNum - 1
@@ -123,12 +121,10 @@ func GenUniqueId() string {
 
 func wrapPublishPacket(packet *packets.PublishPacket) *packets.PublishPacket {
 	p := packet.Copy()
-	wrapPayload := map[string]interface{}{
+	p.Payload, _ = json.Marshal(map[string]interface{}{
 		"message_id": GenUniqueId(),
 		"payload":    string(p.Payload),
-	}
-	b, _ := json.Marshal(wrapPayload)
-	p.Payload = b
+	})
 	return p
 }
 
@@ -154,16 +150,14 @@ func publish(sub *subscription, packet *packets.PublishPacket) {
 
 	switch packet.Qos {
 	case QosAtMostOnce:
-		err := sub.client.WriterPacket(packet)
-		if err != nil {
+		if err := sub.client.WriterPacket(packet); err != nil {
 			log.Error("process message for psub error,  ", zap.Error(err))
 		}
 	case QosAtLeastOnce, QosExactlyOnce:
 		sub.client.inflightMu.Lock()
 		sub.client.inflight[packet.MessageID] = &inflightElem{status: Publish, packet: packet, timestamp: time.Now().Unix()}
 		sub.client.inflightMu.Unlock()
-		err := sub.client.WriterPacket(packet)
-		if err != nil {
+		if err := sub.client.WriterPacket(packet); err != nil {
 			log.Error("process message for psub error,  ", zap.Error(err))
 		}
 		sub.client.ensureRetryTimer()
